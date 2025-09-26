@@ -213,6 +213,7 @@ func printHelp() {
 	fmt.Println("Options:")
 	fmt.Println("  -c           Count lines of code in the current directory")
 	fmt.Println("  -d           Count lines of code recursively in all subdirectories")
+	fmt.Println("  -a           Count lines of code recursively in all subdirectories, including all files")
 	fmt.Println("  filetypes    Comma-separated file extensions (e.g. osl,go,js)")
 	fmt.Println("  --json       Output results as JSON")
 }
