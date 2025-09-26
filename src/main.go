@@ -207,6 +207,8 @@ func printJSON(stats map[string]int) {
 }
 
 func printHelp() {
+	fmt.Println("tally v1.0.0")
+	fmt.Println()
 	fmt.Println("Usage: tally [-c|-d|-a] [filetypes] [--json]")
 	fmt.Println("Count lines of code in the current directory or recursively in all subdirectories.")
 	fmt.Println()
