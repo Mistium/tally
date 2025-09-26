@@ -71,7 +71,6 @@ func main() {
 func countLinesCurrentDir(dir string, allowed map[string]bool, stats map[string]int) {
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading directory: %v\n", err)
 		return
 	}
 
@@ -87,7 +86,6 @@ func countLinesCurrentDir(dir string, allowed map[string]bool, stats map[string]
 		path := filepath.Join(dir, file.Name())
 		lines, err := countLines(path)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", path, err)
 			continue
 		}
 		ext := filepath.Ext(file.Name())
