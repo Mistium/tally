@@ -3,7 +3,10 @@ name: Go Release
 on:
   push:
     tags:
-      - "v*" # Runs when you push a tag like v1.0.0
+      - "v*"
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -36,7 +39,6 @@ jobs:
           name: tally-${{ matrix.goos }}-${{ matrix.goarch }}
           path: ./src/tally-*
 
-
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -46,8 +48,7 @@ jobs:
         with:
           path: ./dist
 
-
-      - name: Display files to be released
+      - name: Show files
         run: ls -lh ./dist
 
       - name: Create GitHub Release
@@ -57,6 +58,6 @@ jobs:
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-          files: ./dist/*
+          files: ./dist/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
