@@ -116,7 +116,7 @@ def countLinesCurrentDir(string dir, object allowed, object stats) (
 
 def countLinesRecursive(string root, object allowed, object stats) (
     fs.WalkDir(root, def(string path, object file, object control) -> (
-        if file.isDir == true and path != root and (file.name.toStr().startsWith(".") || file.name == "node_modules") (
+        if file.isDir == true and path != root and (file.name.toStr().startsWith(".") or file.name == "node_modules") (
             control.skip = true
             return
         )
