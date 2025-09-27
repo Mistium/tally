@@ -7,9 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	ignore "github.com/sabhiram/go-gitignore"
 )
 
 var allowAll = false
+var useGitignore = false
+var gitignore *ignore.GitIgnore = nil
 
 func main() {
 	args := os.Args[1:]
@@ -20,6 +24,7 @@ func main() {
 
 	recursive := false
 	outputJSON := false
+	useGitignore = false
 	allowAll = false
 	allowed := make(map[string]bool)
 
@@ -32,6 +37,11 @@ func main() {
 		case "-a":
 			recursive = true
 			allowAll = true
+		case "-g":
+			useGitignore = true
+		case "-h":
+			printHelp()
+			return
 		case "--json":
 			outputJSON = true
 		default:
@@ -49,6 +59,10 @@ func main() {
 	}
 
 	stats := make(map[string]int)
+
+	if useGitignore {
+		gitignore = getGitignoreMatcher()
+	}
 
 	if recursive {
 		countLinesRecursive(".", allowed, stats)
@@ -68,6 +82,21 @@ func main() {
 	}
 }
 
+func getGitignoreMatcher() *ignore.GitIgnore {
+	ig, err := ignore.CompileIgnoreFile(".gitignore")
+	if err != nil {
+		return nil
+	}
+	return ig
+}
+
+func filterGitignore(path string, ig *ignore.GitIgnore) bool {
+	if ig == nil {
+		return true
+	}
+	return ig.MatchesPath(path)
+}
+
 func countLinesCurrentDir(dir string, allowed map[string]bool, stats map[string]int) {
 	files, err := os.ReadDir(dir)
 	if err != nil {
@@ -79,11 +108,11 @@ func countLinesCurrentDir(dir string, allowed map[string]bool, stats map[string]
 			continue
 		}
 
-		if !shouldCount(file.Name(), allowed) {
+		path := filepath.Join(dir, file.Name())
+		if !shouldCount(path, allowed) {
 			continue
 		}
 
-		path := filepath.Join(dir, file.Name())
 		lines, err := countLines(path)
 		if err != nil {
 			continue
@@ -107,7 +136,7 @@ func countLinesRecursive(root string, allowed map[string]bool, stats map[string]
 			return nil
 		}
 
-		if !shouldCount(d.Name(), allowed) {
+		if !shouldCount(path, allowed) {
 			return nil
 		}
 
@@ -122,11 +151,16 @@ func countLinesRecursive(root string, allowed map[string]bool, stats map[string]
 	})
 }
 
-func shouldCount(name string, allowed map[string]bool) bool {
+func shouldCount(path string, allowed map[string]bool) bool {
+	if useGitignore && filterGitignore(path, gitignore) {
+		return false
+	}
+
 	if len(allowed) == 0 || allowAll {
 		return true
 	}
-	ext := filepath.Ext(name)
+
+	ext := filepath.Ext(path)
 	return allowed[ext]
 }
 
@@ -207,13 +241,15 @@ func printJSON(stats map[string]int) {
 func printHelp() {
 	fmt.Println("tally v1.0.0")
 	fmt.Println()
-	fmt.Println("Usage: tally [-c|-d|-a] [filetypes] [--json]")
+	fmt.Println("Usage: tally [-c|-d|-a|-g|-h] [filetypes] [--json]")
 	fmt.Println("Count lines of code in the current directory or recursively in all subdirectories.")
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  -c           Count lines of code in the current directory")
 	fmt.Println("  -d           Count lines of code recursively in all subdirectories")
 	fmt.Println("  -a           Count lines of code recursively in all subdirectories, including all files")
+	fmt.Println("  -g           Respect .gitignore file and exclude ignored files")
+	fmt.Println("  -h           Show help")
 	fmt.Println("  filetypes    Comma-separated file extensions (e.g. osl,go,js)")
 	fmt.Println("  --json       Output results as JSON")
 }
