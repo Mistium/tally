@@ -1,0 +1,225 @@
+import "osl/fs"
+import "osl/objects"
+import "osl/sys"
+import "github.com/sabhiram/go-gitignore as ignore"
+
+boolean allowAll = false
+boolean useGitignore = false
+"*ignore.GitIgnore" gitignore = null
+
+def main() (
+    args := sys.GetArgs().slice(2, -1)
+    if args.len == 0 (
+        printHelp()
+        return
+    )
+
+    recursive := false
+    outputJSON := false
+    useGitignore = false
+    allowAll = false
+    allowed := {}
+
+    for i args.len (
+        arg := args[i].toStr()
+        if arg == "-c" (
+            recursive = false
+        ) else if arg == "-d" (
+            recursive = true
+        ) else if arg == "-a" (
+            recursive = true
+            allowAll = true
+        ) else if arg == "-g" (
+            useGitignore = true
+        ) else if arg == "-h" (
+            printHelp()
+            return
+        ) else if arg == "--json" (
+            outputJSON = true
+        ) else (
+            extensions := arg.split(",")
+            for e extensions.len (
+                ext := extensions[e].toStr().trim()
+                if ext != "" (
+                    if !ext.startsWith(".") (
+                        ext = "." + ext
+                    )
+                    allowed[ext] = true
+                )
+            )
+        )
+    )
+
+    stats := {}
+
+    if useGitignore (
+        gitignore = getGitignoreMatcher()
+    )
+
+    if recursive (
+        countLinesRecursive(".", allowed, stats)
+    ) else (
+        countLinesCurrentDir(".", allowed, stats)
+    )
+
+    if outputJSON (
+        printJSON(stats)
+    ) else (
+        string[] keys = objects.Keys(stats)
+        for i keys.len (
+            k := keys[i]
+            if !objects.Has(stats, k) (
+                stats[k] = 0
+            )
+        )
+        printTable(stats)
+    )
+)
+
+def getGitignoreMatcher() *ignore.GitIgnore (
+    parts := ignore.CompileIgnoreFile(".gitignore").toArray()
+    if parts[2] != null (
+        return null
+    )
+    return parts[1].assert("*ignore.GitIgnore")
+)
+
+def filterGitignore(string path, *ignore.GitIgnore ig) boolean (
+    if ig == nil (
+        return true
+    )
+    return ig.MatchesPath(path)
+)
+
+def countLinesCurrentDir(string dir, object allowed, object stats) (
+    array files = fs.ReadDirAll(dir)
+    if files.len == 0 (
+        return
+    )
+
+    for i files.len (
+        file := files[i]
+        if file.isDir == true (
+            continue
+        )
+
+        path := file.path.toStr()
+        if !shouldCount(path, allowed) (
+            continue
+        )
+
+        int lines = countLines(path)
+        ext := file.ext
+        stats[ext] += lines
+    )
+)
+
+def countLinesRecursive(string root, object allowed, object stats) (
+    fs.WalkDir(root, def(string path, object file, object control) -> (
+        if file.isDir == true and path != root and (file.name.toStr().startsWith(".") || file.name == "node_modules") (
+            control.skip = true
+            return
+        )
+
+        if file.isDir == true (
+            return
+        )
+
+        if !shouldCount(path, allowed) (
+            return
+        )
+
+        int lines = countLines(path)
+        ext := file.ext
+        stats[ext] += lines
+        return
+    ))
+)
+
+def shouldCount(string path, object allowed) boolean (
+    if useGitignore and filterGitignore(path, gitignore) (
+        return false
+    )
+
+    if allowed.len == 0 or allowAll (
+        return true
+    )
+
+    ext := fs.GetExt(path)
+    return allowed[ext].toBool()
+)
+
+def countLines(string filePath) int (
+    int lines = 0
+    string file = fs.ReadFile(filePath)
+    if file == "" (
+        return 0
+    )
+
+    lines = file.split("\n").len
+    return lines
+)
+
+def printTable(object stats) (
+    string[] keys = objects.Keys(stats)
+
+    if keys.len == 0 (
+        print("No matching files found.")
+        return
+    )
+
+    log "| Extension | Lines of Code | Percentage |"
+    log "| --------- | ------------- | ---------- |"
+
+    int total = 0
+    for k keys.len (
+        total += stats[keys[k]].toInt()
+    )
+
+    array sortedStats = []
+    for k keys.len (
+        sortedStats = sortedStats.append([keys[k], stats[keys[k]].toInt()])
+    )
+    for i keys.len (
+        for j keys.len (
+            if sortedStats[j][2] < sortedStats[i][2] (
+                temp := sortedStats[j]
+                sortedStats[j] = sortedStats[i]
+                sortedStats[i] = temp
+            )
+        )
+    )
+
+    for i sortedStats.len (
+        extName := sortedStats[i][1].toStr().stripStart(".")
+        
+        if extName == "" (
+            extName = "(no ext)"
+        )
+        number percentage = round((sortedStats[i][2].toNum() / total.toNum()) * 1000) / 10
+        log "| " + extName.padEnd(" ", 10) + "|" + sortedStats[i][2].toStr().padStart(" ", 14) + " |" + percentage.toStr().padStart(" ", 10) + "% |"
+    )
+    log ""
+    log "Total lines of code: " + total.toStr()
+)
+
+def printJSON(object obj) (
+    string data = obj.JsonFormat()
+    log data
+)
+
+def printHelp() (
+    log "tally v1.0.0"
+    log ""
+    log "Usage: tally [-c|-d|-a|-g|-h] [filetypes] [--json]"
+    log "Count lines of code in the current directory or recursively in all subdirectories."
+    log ""
+    log "Options:"
+    log "  -c           Count lines of code in the current directory"
+    log "  -d           Count lines of code recursively in all subdirectories"
+    log "  -a           Count lines of code recursively in all subdirectories, including all files"
+    log "  -g           Respect .gitignore file and exclude ignored files"
+    log "  -h           Show help"
+    log "  filetypes    Comma-separated file extensions (e.g. osl,go,js)"
+    log "  --json       Output results as JSON"
+)
