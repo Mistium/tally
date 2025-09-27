@@ -23,6 +23,7 @@ tally [options]
 | `-c`   | Count lines of code in the current directory |
 | `-d`   | Count lines of code in the current directory and all subdirectories |
 | `-a`   | Count lines of code in the current directory and all subdirectories, including all files |
+| `-g`   | Respect .gitignore file and exclude ignored files |
 | `-h`   | Show help |
 
 ## Example
